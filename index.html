@@ -1,0 +1,216 @@
+<!doctype html> 
+<html>
+  <head>
+    <!--Import Google Icon Font-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!--Import materialize.css-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!--Let browser know website is optimized for mobile-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  </head>
+  <body>
+    <div id="app">
+      <nav>
+        <div class="nav-wrapper blue darken-2">
+          <a href="#" class="brand-logo">Spacing Calc</a>
+        </div>
+      </nav>
+      <div class="container">
+        <h1>Spacing Calculator</h1>
+        <h4>Length</h4>
+        <div class="row">
+          <div class="col s6">
+            <div class="input-field">
+              <input placeholder="Placeholder" id="fillLength" type="text" class="validate" v-model="fillLength">
+              <label for="first_name">Fill length</label>
+            </div>
+          </div> 
+          <div class="col s6">
+            <span class="explanation">the length of space to fill with spacers.</span>
+          </div> 
+        </div>
+        <div class="row">
+          <div class="col s6">
+            <div class="input-field">
+              <input placeholder="Placeholder" id="tolerance" type="text" class="validate" v-model="tolerance">
+              <label for="first_name">Tolerance</label>
+            </div>
+          </div> 
+          <div class="col s6">
+            <span class="explanation">the minimum gap to preserve (an exact fit might be too tight.)</span>
+          </div> 
+        </div>
+        <div class="row">
+          <div class="col m6">
+            <h4>Spacers</h4>
+            <div v-for="spacer in spacers" :key="spacer.name">
+              <input type="checkbox" class="filled-in" v-bind:id="spacer.name" v-bind:value="spacer.name" checked="checked" v-model="checkedSpacerNames"></input>
+              <label v-bind:for="spacer.name">{{ spacer.name }}</label>
+            </div>
+            <a class="waves-effect waves-light btn" @click="calcSpacing"><i class="material-icons left">forward</i>Calculate!</a>
+          </div>
+          <div class="col m6">
+            <div v-if="answerCalculated">
+              <div class="card">
+                <div class="card-content">
+                  <span class="card-title">Required Spacers</span>
+                  <ul>
+                    <li v-for="requiredSpacer in requiredSpacers" :key="requiredSpacer.name">
+                      {{ requiredSpacer.amount }} - {{ requiredSpacer.name}}
+                    </li>
+                  </ul>
+                </div>
+                <div class="card-action">
+                  <a>{{parseFloat(' ' + Math.abs(leftoverSpace)).toFixed(4)}}" left.</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Compiled and minified JavaScript -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/js/materialize.min.js"></script>
+    <script src="https://unpkg.com/vue"></script>
+    <script>
+      const app = new Vue({
+        el: '#app',
+        data: {
+          fillLength: 1.23,
+          spacers: [
+            { name: '0.5\" nylon', length: 0.5 },
+            { name: '0.375\" nylon', length: 0.375 },
+            { name: '8mm black', length: 0.314961 },
+            { name: '0.25\" nylon', length: 0.25 },
+            { name: '4.6mm black', length: 0.181102 },
+            { name: '0.125\" nylon', length: 0.125 },
+            { name: 'teflon washer', length: 0.04 }
+          ],
+          checkedSpacerNames: [],
+          answerCalculated: false,
+          requiredSpacers: [],
+          leftoverSpace: 0,
+          tolerance: 0.05
+        },
+        mounted () {
+          // get the names checked.
+          for (spacer of this.spacers) {
+            this.checkedSpacerNames.push(spacer.name)
+          }
+
+        },
+        methods: {
+          calcSpacing () {
+            this.answerCalculated = true
+            var self = this
+            var solCache = []
+            var cacheCount = 0
+
+            // get the lengths of the checked spacers
+            self.checkedSpacers = []
+            for (name of self.checkedSpacerNames) {
+              for (spacer of self.spacers) {
+                if (name === spacer.name) {
+                  self.checkedSpacers.push(spacer)
+                }
+              }
+            }
+            // get a unique array index for each number
+            function hashKey (num) {
+              return '' + Math.floor(num * 10000000)
+            }
+
+            // returns an array of the best lengths to use.
+            function calc (fl) {
+              // catch edge cases: no fill length
+              if (fl <= 0) {
+                return []
+              }
+
+              // check the cache
+              if (solCache[hashKey(fl)] !== undefined) {
+                cacheCount++
+                return solCache[hashKey(fl)]
+              }
+
+              // try to fill with each spacer
+              let sols = []
+              for (sp of self.checkedSpacers) {
+                // if the length fits within remaining space, try this solution recursively.
+                if (sp.length <= fl) {
+                  sols.push([sp.length].concat(calc(fl - sp.length)))
+                }
+              }
+
+              // pick the best solution
+              var lowest = 0 
+              var lowestSol = []
+              for (sol of sols) {
+                let solCount = sol.reduce(function (a, b) {
+                  return a + b
+                })
+                // if this solution is lowest, it gets returned
+                if (fl - solCount < fl - lowest) {
+                  lowest = solCount
+                  lowestSol = JSON.parse(JSON.stringify(sol))
+                // if this solution is equally good with less spacers, it gets returned instead
+                } else if (fl - solCount >= 0 && sol.length < lowestSol.length) {
+                  lowest = solCount
+                  lowestSol = JSON.parse(JSON.stringify(sol))
+                }
+              }
+
+              // cache value for future solutions
+              solCache[hashKey(fl)] = lowestSol
+
+              return lowestSol
+            }
+            let ans = calc(self.fillLength - self.tolerance)
+
+            self.leftoverSpace = self.fillLength - ans.reduce((a, b) => a + b)
+
+            // convert the algorithm answer to human understandable form.
+            function decomposeCalcAnswer (sol) {
+              function isApproxEqualEps (epsilon) {
+                return (function (a, b) {
+                  return Math.abs(a - b) <= epsilon
+                })
+              }
+
+              let approx = isApproxEqualEps(0.01)
+
+              // add the spacers to the list for the user.
+              self.requiredSpacers = []
+              var existingSpacerNames = []
+
+              for (val of ans) {
+                for(spacer of self.spacers) {
+                  if (approx(spacer.length, val)){
+                    // don't add redundant names, instead, add amount values.
+                    if (existingSpacerNames.indexOf(spacer.name) === -1) {
+                      self.requiredSpacers.push({ name: spacer.name, length: spacer.length, amount: 1 })
+                      existingSpacerNames.push(spacer.name)
+                    } else {
+                      for (existingSpacer of self.requiredSpacers) {
+                        if (existingSpacer.name === spacer.name) {
+                          existingSpacer.amount++
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            decomposeCalcAnswer(ans)
+          }
+        }
+      })
+    </script>
+    <style>
+    </style>
+
+  </body>
+</html>
