@@ -173,19 +173,23 @@
 
             // pick the best solution
             var lowest = 0
-            var lowestSol = []
+            var lowestSol = [1,2,3,4,5,6,7,8,9]
             for (sol of sols) {
               let solCount = sol.reduce(function (a, b) {
                 return a + b
               })
-              // if this solution is lowest, it gets returned
-              if (fl - solCount < fl - lowest) {
-                lowest = solCount
-                lowestSol = JSON.parse(JSON.stringify(sol))
-                // if this solution is equally good with less spacers, it gets returned instead
-              } else if (fl - solCount >= 0 && sol.length < lowestSol.length) {
-                lowest = solCount
-                lowestSol = JSON.parse(JSON.stringify(sol))
+              // // if this solution is lowest, it gets returned
+              // if (fl - solCount < fl - lowest) {
+              //   lowest = solCount
+              //   lowestSol = JSON.parse(JSON.stringify(sol))
+              //   // if this solution is equally good with less spacers, it gets returned instead
+              // } else if (fl - solCount >= 0 && sol.length < lowestSol.length) {
+              //   lowest = solCount
+              //   lowestSol = JSON.parse(JSON.stringify(sol))
+              // }
+              if (sol.length < lowestSol.length) {
+                 lowest = solCount
+                 lowestSol = JSON.parse(JSON.stringify(sol))
               }
             }
 
@@ -210,8 +214,8 @@
           var ans
 
           // for big lengths, use the greedy sol
-          if (self.fillLength > 2.10) {
-            var greedyAns = calcGreedy(self.fillLength - 2.00)
+          if (self.fillLength > 5.10) {
+            var greedyAns = calcGreedy(self.fillLength - 5.00)
             var greedyAnsLen = greedyAns.reduce((a, b) => a + b)
 
             var calcAns = calc(self.fillLength - greedyAnsLen - self.tolerance)
