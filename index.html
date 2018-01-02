@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -28,8 +28,9 @@
       <div class="row">
         <div class="col s6">
           <div class="input-field">
-            <input placeholder="Placeholder" id="fillLength" type="text" class="validate" v-model="fillLength">
-            <label for="first_name">Fill length</label>
+            <input placeholder="Placeholder" id="fl" type="text" class="validate" v-model="fillLength">
+            <label for="first_name">Fill length (inches)</label>
+            <span v-if="fillLengthError !== ''">{{ fillLengthError }}</span>
           </div>
         </div>
         <div class="col s6">
@@ -39,8 +40,8 @@
       <div class="row">
         <div class="col s6">
           <div class="input-field">
-            <input placeholder="Placeholder" id="tolerance" type="text" class="validate" v-model="tolerance">
-            <label for="first_name">Tolerance</label>
+            <input placeholder="Placeholder" id="tolerance" type="text" class="validate" v-model="gap">
+            <label for="first_name">Gap (inches)</label>
           </div>
         </div>
         <div class="col s6">
@@ -69,7 +70,7 @@
                 </ul>
               </div>
               <div class="card-action">
-                <a>{{parseFloat(' ' + Math.abs(leftoverSpace)).toFixed(4)}}" left.</a>
+                <a>{{parseFloat(' ' + Math.abs(leftoverSpace)).toFixed(2)}}" left.</a>
               </div>
             </div>
           </div>
@@ -84,42 +85,44 @@
         fillLength: 1.23,
         spacers: [{
             name: '0.5\" nylon',
-            length: 0.500
+            length: 500
           },
           {
             name: '0.375\" nylon',
-            length: 0.375
+            length: 375
           },
           {
             name: '8mm black',
-            length: 0.315
+            length: 315
           },
           {
             name: '0.25\" nylon',
-            length: 0.250
+            length: 250
           },
           {
             name: '4.6mm black',
-            length: 0.181
+            length: 181
           },
           {
             name: '0.125\" nylon',
-            length: 0.125
+            length: 125
           },
           {
             name: 'teflon washer',
-            length: 0.040
+            length: 40
           },
           {
             name: 'steel washer',
-            length: 0.032
+            length: 32
           }
         ],
         checkedSpacerNames: [],
         answerCalculated: false,
         requiredSpacers: [],
         leftoverSpace: 0,
-        tolerance: 0.05
+        tolerance: 0.01,
+        gap: 0.1,
+        fillLengthError: ''
       },
       mounted() {
         // get the names checked.
@@ -130,8 +133,38 @@
       },
       methods: {
         calcSpacing() {
-          this.answerCalculated = true
+          this.fillLengthError = ''
+          this.fillLength = parseFloat(this.fillLength)
+          this.gap = parseFloat(this.gap)
           var self = this
+
+          function validateInput () {
+            function isPosN (n) {
+              console.log(n)
+              if (typeof n !== 'number' || n < 0) {
+                self.fillLengthError = 'Input must be a positive number.'
+                return false
+              }
+              if ((/^\d+(\.\d{0,3})?$/).test('' + n) === false) {
+                self.fillLengthError = 'Too precise for these parts - reduce the precision please.'
+                return false
+              }
+              return true
+            }
+            if (!isPosN(self.fillLength) || !isPosN(self.gap)) {
+              return false
+            }
+            if (self.fillLength <= self.gap) {
+              self.fillLengthError = 'the gap must be smaller than the fill length.'
+              return false
+            }
+            return true
+          }
+          if (!validateInput()) {
+            return
+          }
+
+          this.answerCalculated = true
           var solCache = []
           var cacheCount = 0
 
@@ -173,21 +206,14 @@
 
             // pick the best solution
             var lowest = 0
-            var lowestSol = [1,2,3,4,5,6,7,8,9]
+            var lowestSol = []
             for (sol of sols) {
               let solCount = sol.reduce(function (a, b) {
                 return a + b
               })
-              // // if this solution is lowest, it gets returned
-              // if (fl - solCount < fl - lowest) {
-              //   lowest = solCount
-              //   lowestSol = JSON.parse(JSON.stringify(sol))
-              //   // if this solution is equally good with less spacers, it gets returned instead
-              // } else if (fl - solCount >= 0 && sol.length < lowestSol.length) {
-              //   lowest = solCount
-              //   lowestSol = JSON.parse(JSON.stringify(sol))
-              // }
-              if (sol.length < lowestSol.length) {
+              // if better solution OR equally good with less spacers, use this.
+              if (fl - solCount < fl - lowest || (fl - solCount === fl - lowest && sol.length < lowestSol.length)) {
+                console.log('hii')
                  lowest = solCount
                  lowestSol = JSON.parse(JSON.stringify(sol))
               }
@@ -200,7 +226,7 @@
           }
 
           function calcGreedy (fl) {
-            fl = fl - self.tolerance
+            fl = fl
             var sol = []
             for (spacer of self.checkedSpacers) {
               while (fl - spacer.length > 0) {
@@ -213,18 +239,11 @@
 
           var ans
 
-          // for big lengths, use the greedy sol
-          if (self.fillLength > 5.10) {
-            var greedyAns = calcGreedy(self.fillLength - 5.00)
-            var greedyAnsLen = greedyAns.reduce((a, b) => a + b)
+          // get the answer, multiply to get into integer land
+          ans = calc(Math.floor((self.fillLength - self.gap) * 1000))
 
-            var calcAns = calc(self.fillLength - greedyAnsLen - self.tolerance)
-            ans = calcAns.concat(greedyAns)
-          } else {
-            ans = calc(self.fillLength - self.tolerance)
-          }
-
-          self.leftoverSpace = self.fillLength - ans.reduce((a, b) => a + b)
+          // convert answer out of integer land
+          self.leftoverSpace = self.fillLength - (ans.reduce((a, b) => a + b) / 1000)
 
           // convert the algorithm answer to human understandable form.
           function decomposeCalcAnswer(sol) {
